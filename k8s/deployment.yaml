@@ -1,0 +1,67 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airflow
+  namespace: "airflow"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      deploy: airflow
+      name: airflow
+      component: webserver
+  template:
+    metadata:
+      labels:
+        deploy: airflow
+        name: airflow
+        component: webserver
+    spec:
+      serviceAccountName: airflow-scheduler
+      containers:
+        - name: airflow-webserver
+          image: apache/airflow:2.7.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: AIRFLOW__CORE__SQL_ALCHEMY_CONN
+              valueFrom:
+                configMapKeyRef:
+                  name: airflow-config
+                  key: sql_alchemy_conn
+            - name: AIRFLOW__CORE__EXECUTOR
+              valueFrom:
+                configMapKeyRef:
+                  name: airflow-config
+                  key: executor
+          ports:
+            - containerPort: 8080
+          command: ["airflow"]
+          args: ["webserver"]
+      restartPolicy: Always
+      volumes:
+        - name: dags-pv
+          persistentVolumeClaim:
+            claimName: dags-pvc
+        - name: logs-pv
+          persistentVolumeClaim:
+            claimName: logs-pvc
+---
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webserver-svc
+  namespace: airflow
+spec:
+  type: NodePort
+  selector:
+    deploy: airflow
+    name: airflow
+    component: webserver
+  ports:
+    - name: airflow-ui
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+---
